@@ -44,4 +44,4 @@ require (
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1
 )
 
-replace github.com/luxfi/node => /Users/z/work/lux/node
+replace github.com/luxfi/node => /home/z/work/lux/node
