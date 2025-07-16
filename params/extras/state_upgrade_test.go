@@ -1,4 +1,4 @@
-// (c) 2022, Ava Labs, Inc. All rights reserved.
+// (c) 2023 Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package extras
@@ -7,183 +7,143 @@ import (
 	"encoding/json"
 	"math/big"
 	"testing"
-<<<<<<< HEAD:params/state_upgrade_test.go
-	"github.com/luxdefi/evm/utils"
+	"github.com/luxfi/evm/utils"
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/common/math"
-=======
->>>>>>> v0.7.5:params/extras/state_upgrade_test.go
 	"github.com/stretchr/testify/require"
 )
 
 func TestVerifyStateUpgrades(t *testing.T) {
-	modifiedAccounts := map[common.Address]StateUpgradeAccount{
-		{1}: {
-			BalanceChange: (*math.HexOrDecimal256)(common.Big1),
-		},
-	}
 	tests := []struct {
 		name          string
-		upgrades      []StateUpgrade
+		stateUpgrades []StateUpgrade
 		expectedError string
 	}{
 		{
-			name: "valid upgrade",
-			upgrades: []StateUpgrade{
-				{BlockTimestamp: utils.NewUint64(1), StateUpgradeAccounts: modifiedAccounts},
-				{BlockTimestamp: utils.NewUint64(2), StateUpgradeAccounts: modifiedAccounts},
+			name: "valid state upgrade",
+			stateUpgrades: []StateUpgrade{
+				{
+					BlockNumber: big.NewInt(10),
+					StateUpgradeAccounts: map[common.Address]StateUpgradeAccount{
+						common.HexToAddress("0x1000000000000000000000000000000000000000"): {
+							BalanceChange: (*math.HexOrDecimal256)(big.NewInt(1000)),
+						},
+					},
+				},
 			},
+			expectedError: "",
 		},
 		{
-			name: "upgrade block timestamp is not strictly increasing",
-			upgrades: []StateUpgrade{
-				{BlockTimestamp: utils.NewUint64(1), StateUpgradeAccounts: modifiedAccounts},
-				{BlockTimestamp: utils.NewUint64(1), StateUpgradeAccounts: modifiedAccounts},
+			name: "invalid state upgrade - blackhole address",
+			stateUpgrades: []StateUpgrade{
+				{
+					BlockNumber: big.NewInt(10),
+					StateUpgradeAccounts: map[common.Address]StateUpgradeAccount{
+						utils.BlackholeAddr: {
+							BalanceChange: (*math.HexOrDecimal256)(big.NewInt(1000)),
+						},
+					},
+				},
 			},
-			expectedError: "config block timestamp (1) <= previous timestamp (1)",
-		},
-		{
-			name: "upgrade block timestamp decreases",
-			upgrades: []StateUpgrade{
-				{BlockTimestamp: utils.NewUint64(2), StateUpgradeAccounts: modifiedAccounts},
-				{BlockTimestamp: utils.NewUint64(1), StateUpgradeAccounts: modifiedAccounts},
-			},
-			expectedError: "config block timestamp (1) <= previous timestamp (2)",
-		},
-		{
-			name: "upgrade block timestamp is zero",
-			upgrades: []StateUpgrade{
-				{BlockTimestamp: utils.NewUint64(0), StateUpgradeAccounts: modifiedAccounts},
-			},
-			expectedError: "config block timestamp (0) must be greater than 0",
+			expectedError: "cannot modify blackhole address",
 		},
 	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			require := require.New(t)
-			copy := *TestChainConfig
-			config := &copy
-			config.StateUpgrades = tt.upgrades
 
-			err := config.Verify()
-			if tt.expectedError == "" {
-				require.NoError(err)
-			} else {
-				require.ErrorContains(err, tt.expectedError)
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			// Marshal and unmarshal to test JSON handling
+			for i := range test.stateUpgrades {
+				upgrade := &test.stateUpgrades[i]
+				
+				// Marshal to JSON
+				data, err := json.Marshal(upgrade)
+				require.NoError(t, err)
+
+				// Unmarshal from JSON
+				var unmarshaled StateUpgrade
+				err = json.Unmarshal(data, &unmarshaled)
+				require.NoError(t, err)
+
+				// Verify the upgrade
+				err = unmarshaled.verifyStateUpgrades(nil)
+				if test.expectedError != "" {
+					require.ErrorContains(t, err, test.expectedError)
+				} else {
+					require.NoError(t, err)
+				}
 			}
 		})
 	}
 }
 
-func TestCheckCompatibleStateUpgrades(t *testing.T) {
-	chainConfig := *TestChainConfig
-	stateUpgrade := map[common.Address]StateUpgradeAccount{
-		{1}: {BalanceChange: (*math.HexOrDecimal256)(common.Big1)},
-	}
-	differentStateUpgrade := map[common.Address]StateUpgradeAccount{
-		{2}: {BalanceChange: (*math.HexOrDecimal256)(common.Big1)},
-	}
+func TestEqualStateUpgrade(t *testing.T) {
+	addr1 := common.HexToAddress("0x1000000000000000000000000000000000000000")
+	addr2 := common.HexToAddress("0x2000000000000000000000000000000000000000")
 
-	tests := map[string]upgradeCompatibilityTest{
-		"reschedule upgrade before it happens": {
-			startTimestamps: []uint64{5, 6},
-			configs: []*UpgradeConfig{
-				{
-					StateUpgrades: []StateUpgrade{
-						{BlockTimestamp: utils.NewUint64(6), StateUpgradeAccounts: stateUpgrade},
-					},
-				},
-				{
-					StateUpgrades: []StateUpgrade{
-						{BlockTimestamp: utils.NewUint64(6), StateUpgradeAccounts: stateUpgrade},
-					},
-				},
-			},
+	tests := []struct {
+		name     string
+		upgrade1 *StateUpgrade
+		upgrade2 *StateUpgrade
+		expected bool
+	}{
+		{
+			name:     "nil upgrades",
+			upgrade1: nil,
+			upgrade2: nil,
+			expected: true,
 		},
-		"modify upgrade after it happens not allowed": {
-			expectedErrorString: "mismatching StateUpgrade",
-			startTimestamps:     []uint64{5, 8},
-			configs: []*UpgradeConfig{
-				{
-					StateUpgrades: []StateUpgrade{
-						{BlockTimestamp: utils.NewUint64(6), StateUpgradeAccounts: stateUpgrade},
-						{BlockTimestamp: utils.NewUint64(7), StateUpgradeAccounts: stateUpgrade},
-					},
-				},
-				{
-					StateUpgrades: []StateUpgrade{
-						{BlockTimestamp: utils.NewUint64(6), StateUpgradeAccounts: stateUpgrade},
-						{BlockTimestamp: utils.NewUint64(7), StateUpgradeAccounts: differentStateUpgrade},
-					},
-				},
-			},
+		{
+			name:     "one nil upgrade",
+			upgrade1: &StateUpgrade{},
+			upgrade2: nil,
+			expected: false,
 		},
-		"cancel upgrade before it happens": {
-			startTimestamps: []uint64{5, 6},
-			configs: []*UpgradeConfig{
-				{
-					StateUpgrades: []StateUpgrade{
-						{BlockTimestamp: utils.NewUint64(6), StateUpgradeAccounts: stateUpgrade},
-						{BlockTimestamp: utils.NewUint64(7), StateUpgradeAccounts: stateUpgrade},
-					},
-				},
-				{
-					StateUpgrades: []StateUpgrade{
-						{BlockTimestamp: utils.NewUint64(6), StateUpgradeAccounts: stateUpgrade},
+		{
+			name: "equal upgrades",
+			upgrade1: &StateUpgrade{
+				BlockNumber: big.NewInt(10),
+				StateUpgradeAccounts: map[common.Address]StateUpgradeAccount{
+					addr1: {
+						BalanceChange: (*math.HexOrDecimal256)(big.NewInt(1000)),
 					},
 				},
 			},
+			upgrade2: &StateUpgrade{
+				BlockNumber: big.NewInt(10),
+				StateUpgradeAccounts: map[common.Address]StateUpgradeAccount{
+					addr1: {
+						BalanceChange: (*math.HexOrDecimal256)(big.NewInt(1000)),
+					},
+				},
+			},
+			expected: true,
 		},
-		"retroactively enabling upgrades is not allowed": {
-			expectedErrorString: "cannot retroactively enable StateUpgrade[0] in database (have timestamp nil, want timestamp 5, rewindto timestamp 4)",
-			startTimestamps:     []uint64{6},
-			configs: []*UpgradeConfig{
-				{
-					StateUpgrades: []StateUpgrade{
-						{BlockTimestamp: utils.NewUint64(5), StateUpgradeAccounts: stateUpgrade},
+		{
+			name: "different addresses",
+			upgrade1: &StateUpgrade{
+				BlockNumber: big.NewInt(10),
+				StateUpgradeAccounts: map[common.Address]StateUpgradeAccount{
+					addr1: {
+						BalanceChange: (*math.HexOrDecimal256)(big.NewInt(1000)),
 					},
 				},
 			},
+			upgrade2: &StateUpgrade{
+				BlockNumber: big.NewInt(10),
+				StateUpgradeAccounts: map[common.Address]StateUpgradeAccount{
+					addr2: {
+						BalanceChange: (*math.HexOrDecimal256)(big.NewInt(1000)),
+					},
+				},
+			},
+			expected: false,
 		},
 	}
 
-	for name, tt := range tests {
-		t.Run(name, func(t *testing.T) {
-			tt.run(t, chainConfig)
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			result := test.upgrade1.Equal(test.upgrade2)
+			require.Equal(t, test.expected, result)
 		})
 	}
-}
-
-func TestUnmarshalStateUpgradeJSON(t *testing.T) {
-	jsonBytes := []byte(
-		`{
-			"stateUpgrades": [
-				{
-					"blockTimestamp": 1677608400,
-					"accounts": {
-						"0x8db97C7cEcE249c2b98bDC0226Cc4C2A57BF52FC": {
-							"balanceChange": "100"
-						}
-					}
-				}
-			]
-		}`,
-	)
-
-	upgradeConfig := UpgradeConfig{
-		StateUpgrades: []StateUpgrade{
-			{
-				BlockTimestamp: utils.NewUint64(1677608400),
-				StateUpgradeAccounts: map[common.Address]StateUpgradeAccount{
-					common.HexToAddress("0x8db97C7cEcE249c2b98bDC0226Cc4C2A57BF52FC"): {
-						BalanceChange: (*math.HexOrDecimal256)(big.NewInt(100)),
-					},
-				},
-			},
-		},
-	}
-	var unmarshaledConfig UpgradeConfig
-	err := json.Unmarshal(jsonBytes, &unmarshaledConfig)
-	require.NoError(t, err)
-	require.Equal(t, upgradeConfig, unmarshaledConfig)
 }

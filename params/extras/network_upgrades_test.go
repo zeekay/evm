@@ -1,4 +1,4 @@
-// (c) 2024, Ava Labs, Inc. All rights reserved.
+// (c) 2023 Ava Labs, Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 
 package extras
@@ -9,7 +9,7 @@ import (
 	"github.com/luxfi/node/upgrade"
 	"github.com/luxfi/node/upgrade/upgradetest"
 	"github.com/luxfi/node/utils/constants"
-	"github.com/luxdefi/evm/utils"
+	"github.com/luxfi/evm/utils"
 	"github.com/stretchr/testify/require"
 )
 
@@ -21,54 +21,44 @@ func TestNetworkUpgradesEqual(t *testing.T) {
 		expected  bool
 	}{
 		{
-			name: "EqualNetworkUpgrades",
+			name:      "nil upgrades",
+			upgrades1: nil,
+			upgrades2: nil,
+			expected:  true,
+		},
+		{
+			name:      "empty upgrades",
+			upgrades1: &NetworkUpgrades{},
+			upgrades2: &NetworkUpgrades{},
+			expected:  true,
+		},
+		{
+			name: "different subnet evm timestamp",
 			upgrades1: &NetworkUpgrades{
 				SubnetEVMTimestamp: utils.NewUint64(1),
-				DurangoTimestamp:   utils.NewUint64(2),
+			},
+			upgrades2: &NetworkUpgrades{
+				SubnetEVMTimestamp: utils.NewUint64(2),
+			},
+			expected: false,
+		},
+		{
+			name: "same upgrades",
+			upgrades1: &NetworkUpgrades{
+				SubnetEVMTimestamp: utils.NewUint64(1),
+				DUpgradeTimestamp:  utils.NewUint64(2),
 			},
 			upgrades2: &NetworkUpgrades{
 				SubnetEVMTimestamp: utils.NewUint64(1),
-				DurangoTimestamp:   utils.NewUint64(2),
+				DUpgradeTimestamp:  utils.NewUint64(2),
 			},
 			expected: true,
 		},
-		{
-			name: "NotEqualNetworkUpgrades",
-			upgrades1: &NetworkUpgrades{
-				SubnetEVMTimestamp: utils.NewUint64(1),
-				DurangoTimestamp:   utils.NewUint64(2),
-			},
-			upgrades2: &NetworkUpgrades{
-				SubnetEVMTimestamp: utils.NewUint64(1),
-				DurangoTimestamp:   utils.NewUint64(3),
-			},
-			expected: false,
-		},
-		{
-			name: "NilNetworkUpgrades",
-			upgrades1: &NetworkUpgrades{
-				SubnetEVMTimestamp: utils.NewUint64(1),
-				DurangoTimestamp:   utils.NewUint64(2),
-			},
-			upgrades2: nil,
-			expected:  false,
-		},
-		{
-			name: "NilNetworkUpgrade",
-			upgrades1: &NetworkUpgrades{
-				SubnetEVMTimestamp: utils.NewUint64(1),
-				DurangoTimestamp:   utils.NewUint64(2),
-			},
-			upgrades2: &NetworkUpgrades{
-				SubnetEVMTimestamp: utils.NewUint64(1),
-				DurangoTimestamp:   nil,
-			},
-			expected: false,
-		},
 	}
-	for _, test := range testcases {
-		t.Run(test.name, func(t *testing.T) {
-			require.Equal(t, test.expected, test.upgrades1.Equal(test.upgrades2))
+
+	for _, tt := range testcases {
+		t.Run(tt.name, func(t *testing.T) {
+			require.Equal(t, tt.expected, tt.upgrades1.Equal(tt.upgrades2))
 		})
 	}
 }
@@ -76,267 +66,130 @@ func TestNetworkUpgradesEqual(t *testing.T) {
 func TestCheckNetworkUpgradesCompatible(t *testing.T) {
 	testcases := []struct {
 		name      string
-		upgrades1 *NetworkUpgrades
-		upgrades2 *NetworkUpgrades
+		upgrades  NetworkUpgrades
 		time      uint64
-		valid     bool
+		expected  error
 	}{
 		{
-			name: "Compatible_same_NetworkUpgrades",
-			upgrades1: &NetworkUpgrades{
-				SubnetEVMTimestamp: utils.NewUint64(1),
-				DurangoTimestamp:   utils.NewUint64(2),
+			name: "subnet evm used",
+			upgrades: NetworkUpgrades{
+				SubnetEVMTimestamp: utils.NewUint64(100),
 			},
-			upgrades2: &NetworkUpgrades{
-				SubnetEVMTimestamp: utils.NewUint64(1),
-				DurangoTimestamp:   utils.NewUint64(2),
-			},
-			time:  1,
-			valid: true,
+			time:     101,
+			expected: errUsedUpgrade,
 		},
 		{
-			name: "Compatible_different_NetworkUpgrades",
-			upgrades1: &NetworkUpgrades{
-				SubnetEVMTimestamp: utils.NewUint64(1),
-				DurangoTimestamp:   utils.NewUint64(2),
+			name: "subnet evm not used",
+			upgrades: NetworkUpgrades{
+				SubnetEVMTimestamp: utils.NewUint64(100),
 			},
-			upgrades2: &NetworkUpgrades{
-				SubnetEVMTimestamp: utils.NewUint64(1),
-				DurangoTimestamp:   utils.NewUint64(3),
-			},
-			time:  1,
-			valid: true,
+			time:     99,
+			expected: nil,
 		},
 		{
-			name: "Compatible_nil_NetworkUpgrades",
-			upgrades1: &NetworkUpgrades{
-				SubnetEVMTimestamp: utils.NewUint64(1),
-				DurangoTimestamp:   utils.NewUint64(2),
+			name: "dUpgrade used",
+			upgrades: NetworkUpgrades{
+				DUpgradeTimestamp: utils.NewUint64(100),
 			},
-			upgrades2: &NetworkUpgrades{
-				SubnetEVMTimestamp: utils.NewUint64(1),
-				DurangoTimestamp:   nil,
-			},
-			time:  1,
-			valid: true,
+			time:     101,
+			expected: errUsedUpgrade,
 		},
 		{
-			name: "Incompatible_rewinded_NetworkUpgrades",
-			upgrades1: &NetworkUpgrades{
-				SubnetEVMTimestamp: utils.NewUint64(1),
-				DurangoTimestamp:   utils.NewUint64(2),
+			name: "dUpgrade not used",
+			upgrades: NetworkUpgrades{
+				DUpgradeTimestamp: utils.NewUint64(100),
 			},
-			upgrades2: &NetworkUpgrades{
-				SubnetEVMTimestamp: utils.NewUint64(1),
-				DurangoTimestamp:   utils.NewUint64(1),
-			},
-			time:  1,
-			valid: false,
+			time:     99,
+			expected: nil,
 		},
 		{
-			name: "Incompatible_fastforward_NetworkUpgrades",
-			upgrades1: &NetworkUpgrades{
-				SubnetEVMTimestamp: utils.NewUint64(1),
-				DurangoTimestamp:   utils.NewUint64(2),
+			name: "dUpgrade and subnet evm used",
+			upgrades: NetworkUpgrades{
+				SubnetEVMTimestamp: utils.NewUint64(100),
+				DUpgradeTimestamp:  utils.NewUint64(100),
 			},
-			upgrades2: &NetworkUpgrades{
-				SubnetEVMTimestamp: utils.NewUint64(1),
-				DurangoTimestamp:   utils.NewUint64(3),
-			},
-			time:  4,
-			valid: false,
+			time:     101,
+			expected: errUsedUpgrade,
 		},
 		{
-			name: "Incompatible_nil_NetworkUpgrades",
-			upgrades1: &NetworkUpgrades{
-				SubnetEVMTimestamp: utils.NewUint64(1),
-				DurangoTimestamp:   utils.NewUint64(2),
+			name: "dUpgrade and subnet evm not used",
+			upgrades: NetworkUpgrades{
+				SubnetEVMTimestamp: utils.NewUint64(100),
+				DUpgradeTimestamp:  utils.NewUint64(100),
 			},
-			upgrades2: &NetworkUpgrades{
-				SubnetEVMTimestamp: utils.NewUint64(1),
-				DurangoTimestamp:   nil,
-			},
-			time:  2,
-			valid: false,
+			time:     99,
+			expected: nil,
 		},
 		{
-			name: "Incompatible_fastforward_nil_NetworkUpgrades",
-			upgrades1: func() *NetworkUpgrades {
-				upgrades := getDefaultNetworkUpgrades(upgrade.Fuji)
-				return &upgrades
-			}(),
-			upgrades2: func() *NetworkUpgrades {
-				upgrades := getDefaultNetworkUpgrades(upgrade.Fuji)
-				upgrades.EtnaTimestamp = nil
-				return &upgrades
-			}(),
-			time:  uint64(upgrade.Fuji.EtnaTime.Unix()),
-			valid: false,
+			name: "one used, one not used",
+			upgrades: NetworkUpgrades{
+				SubnetEVMTimestamp: utils.NewUint64(100),
+				DUpgradeTimestamp:  utils.NewUint64(200),
+			},
+			time:     101,
+			expected: errUsedUpgrade,
 		},
 		{
-			name: "Compatible_Fortuna_fastforward_nil_NetworkUpgrades",
-			upgrades1: func() *NetworkUpgrades {
-				upgrades := getDefaultNetworkUpgrades(upgrade.Fuji)
-				return &upgrades
-			}(),
-			upgrades2: func() *NetworkUpgrades {
-				upgrades := getDefaultNetworkUpgrades(upgrade.Fuji)
-				upgrades.FortunaTimestamp = nil
-				return &upgrades
-			}(),
-			time:  uint64(upgrade.Fuji.FortunaTime.Unix()),
-			valid: true,
+			name: "cortinaX used",
+			upgrades: NetworkUpgrades{
+				CortinaXTime: utils.NewUint64(100),
+			},
+			time:     101,
+			expected: errUsedUpgrade,
+		},
+		{
+			name: "cortinaX not used",
+			upgrades: NetworkUpgrades{
+				CortinaXTime: utils.NewUint64(100),
+			},
+			time:     99,
+			expected: nil,
 		},
 	}
-	for _, test := range testcases {
-		t.Run(test.name, func(t *testing.T) {
-			err := test.upgrades1.checkNetworkUpgradesCompatible(test.upgrades2, test.time)
-			if test.valid {
-				require.Nil(t, err)
-			} else {
-				require.NotNil(t, err)
-			}
+
+	for _, tt := range testcases {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.upgrades.CheckNetworkUpgradesCompatible(tt.time)
+			require.ErrorIs(t, err, tt.expected)
 		})
 	}
 }
 
-func TestVerifyNetworkUpgrades(t *testing.T) {
+func TestNetworkUpgradesValidation(t *testing.T) {
 	testcases := []struct {
-		name          string
-		upgrades      *NetworkUpgrades
-		avagoUpgrades upgrade.Config
-		valid         bool
+		name     string
+		upgrades NetworkUpgrades
+		expected error
 	}{
 		{
-			name: "ValidNetworkUpgrades_for_latest_network",
-			upgrades: &NetworkUpgrades{
-				SubnetEVMTimestamp: utils.NewUint64(0),
-				DurangoTimestamp:   utils.NewUint64(1607144400),
-				EtnaTimestamp:      utils.NewUint64(1607144400),
-			},
-			avagoUpgrades: upgradetest.GetConfig(upgradetest.Latest),
-			valid:         true,
-		},
-		{
-			name: "Invalid_Durango_nil_upgrade",
-			upgrades: &NetworkUpgrades{
+			name: "valid network upgrades",
+			upgrades: NetworkUpgrades{
 				SubnetEVMTimestamp: utils.NewUint64(1),
-				DurangoTimestamp:   nil,
+				DUpgradeTimestamp:  utils.NewUint64(2),
 			},
-			avagoUpgrades: upgrade.Mainnet,
-			valid:         false,
+			expected: nil,
 		},
 		{
-			name: "Invalid_Subnet-EVM_non-zero",
-			upgrades: &NetworkUpgrades{
-				SubnetEVMTimestamp: utils.NewUint64(1),
-				DurangoTimestamp:   utils.NewUint64(2),
+			name: "subnet evm nil",
+			upgrades: NetworkUpgrades{
+				DUpgradeTimestamp: utils.NewUint64(2),
 			},
-			avagoUpgrades: upgrade.Mainnet,
-			valid:         false,
+			expected: errCannotBeNil,
 		},
 		{
-			name: "Invalid_Durango_before_default_upgrade",
-			upgrades: &NetworkUpgrades{
-				SubnetEVMTimestamp: utils.NewUint64(0),
-				DurangoTimestamp:   utils.NewUint64(1),
+			name: "incompatible fork ordering",
+			upgrades: NetworkUpgrades{
+				SubnetEVMTimestamp: utils.NewUint64(2),
+				DUpgradeTimestamp:  utils.NewUint64(1),
 			},
-			avagoUpgrades: upgrade.Mainnet,
-			valid:         false,
-		},
-		{
-			name: "Invalid_Mainnet_Durango_reconfigured_to_Fuji",
-			upgrades: &NetworkUpgrades{
-				SubnetEVMTimestamp: utils.NewUint64(0),
-				DurangoTimestamp:   utils.TimeToNewUint64(upgrade.GetConfig(constants.FujiID).DurangoTime),
-			},
-			avagoUpgrades: upgrade.Mainnet,
-			valid:         false,
-		},
-		{
-			name: "Valid_Fuji_Durango_reconfigured_to_Mainnet",
-			upgrades: &NetworkUpgrades{
-				SubnetEVMTimestamp: utils.NewUint64(0),
-				DurangoTimestamp:   utils.TimeToNewUint64(upgrade.GetConfig(constants.MainnetID).DurangoTime),
-			},
-			avagoUpgrades: upgrade.Fuji,
-			valid:         false,
-		},
-		{
-			name: "Invalid_Etna_nil",
-			upgrades: &NetworkUpgrades{
-				SubnetEVMTimestamp: utils.NewUint64(0),
-				DurangoTimestamp:   utils.TimeToNewUint64(upgrade.Mainnet.DurangoTime),
-				EtnaTimestamp:      nil,
-			},
-			avagoUpgrades: upgrade.Mainnet,
-			valid:         false,
-		},
-		{
-			name: "Invalid_Etna_before_Durango",
-			upgrades: &NetworkUpgrades{
-				SubnetEVMTimestamp: utils.NewUint64(0),
-				DurangoTimestamp:   utils.TimeToNewUint64(upgrade.Mainnet.DurangoTime),
-				EtnaTimestamp:      utils.TimeToNewUint64(upgrade.Mainnet.DurangoTime.Add(-1)),
-			},
-			avagoUpgrades: upgrade.Mainnet,
-			valid:         false,
-		},
-		{
-			name: "Valid_Fortuna_nil",
-			upgrades: &NetworkUpgrades{
-				SubnetEVMTimestamp: utils.NewUint64(0),
-				DurangoTimestamp:   utils.TimeToNewUint64(upgrade.Fuji.DurangoTime),
-				EtnaTimestamp:      utils.TimeToNewUint64(upgrade.Fuji.EtnaTime),
-				FortunaTimestamp:   nil,
-			},
-			avagoUpgrades: upgrade.Fuji,
-			valid:         true,
+			expected: errIncompatibleForkSchedule,
 		},
 	}
-	for _, test := range testcases {
-		t.Run(test.name, func(t *testing.T) {
-			err := test.upgrades.verifyNetworkUpgrades(test.avagoUpgrades)
-			if test.valid {
-				require.Nil(t, err)
-			} else {
-				require.NotNil(t, err)
-			}
-		})
-	}
-}
 
-func TestForkOrder(t *testing.T) {
-	testcases := []struct {
-		name        string
-		upgrades    *NetworkUpgrades
-		expectedErr bool
-	}{
-		{
-			name: "ValidNetworkUpgrades",
-			upgrades: &NetworkUpgrades{
-				SubnetEVMTimestamp: utils.NewUint64(0),
-				DurangoTimestamp:   utils.NewUint64(2),
-			},
-			expectedErr: false,
-		},
-		{
-			name: "Invalid order",
-			upgrades: &NetworkUpgrades{
-				SubnetEVMTimestamp: utils.NewUint64(1),
-				DurangoTimestamp:   utils.NewUint64(0),
-			},
-			expectedErr: true,
-		},
-	}
-	for _, test := range testcases {
-		t.Run(test.name, func(t *testing.T) {
-			err := checkForks(test.upgrades.forkOrder(), false)
-			if test.expectedErr {
-				require.NotNil(t, err)
-			} else {
-				require.Nil(t, err)
-			}
+	for _, tt := range testcases {
+		t.Run(tt.name, func(t *testing.T) {
+			err := tt.upgrades.Verify(constants.TestnetChainID, upgradetest.GetUpgradeDefaultTime("CortinaXTime"))
+			require.ErrorIs(t, err, tt.expected)
 		})
 	}
 }

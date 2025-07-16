@@ -6,11 +6,11 @@ import (
 	"testing"
 <<<<<<< HEAD:core/state/test_statedb.go
 	"github.com/ethereum/go-ethereum/core/rawdb"
-	"github.com/luxdefi/evm/precompile/contract"
+	"github.com/luxfi/evm/precompile/contract"
 	"github.com/ethereum/go-ethereum/common"
 =======
-	"github.com/luxdefi/evm/interfaces/core/rawdb"
-	"github.com/luxdefi/evm/core/state"
+	"github.com/luxfi/evm/interfaces/core/rawdb"
+	"github.com/luxfi/evm/core/state"
 >>>>>>> v0.7.5:core/extstate/test_statedb.go
 	"github.com/stretchr/testify/require"
 )
