@@ -13,27 +13,15 @@
 //
 // You should have received a copy of the GNU Lesser General Public License
 // along with the go-ethereum library. If not, see <http://www.gnu.org/licenses/>.
+
 package node
 
-<<<<<<< HEAD:ethdb/memorydb/memorydb_test.go
-package memorydb
-
-import (
-	"testing"
-	"github.com/ethereum/go-ethereum/ethdb"
-	"github.com/luxdefi/evm/ethdb/dbtest"
+const (
+	DefaultHTTPHost         = "localhost" // Default host interface for the HTTP RPC server
+	DefaultHTTPPort         = 8545        // Default TCP port for the HTTP RPC server
+	DefaultWSHost           = "localhost" // Default host interface for the websocket RPC server
+	DefaultWSPort           = 8546        // Default TCP port for the websocket RPC server
+	DefaultAuthHost         = "localhost" // Default host interface for the authenticated apis
+	DefaultAuthPort         = 8551        // Default port for the authenticated apis
+	DefaultAuthJWTSecretLen = 32          // Default JWT secret length
 )
-
-func TestMemoryDB(t *testing.T) {
-	t.Run("DatabaseSuite", func(t *testing.T) {
-		dbtest.TestDatabaseSuite(t, func() ethdb.KeyValueStore {
-			return New()
-		})
-	})
-=======
-// DefaultConfig contains reasonable default settings.
-var DefaultConfig = Config{
-	BatchRequestLimit:    1000,
-	BatchResponseMaxSize: 25 * 1000 * 1000,
->>>>>>> v0.7.5:node/defaults.go
-}

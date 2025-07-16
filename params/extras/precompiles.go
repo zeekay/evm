@@ -6,8 +6,8 @@ package extras
 import (
 	"encoding/json"
 
-	"github.com/luxdefi/evm/precompile/modules"
-	"github.com/luxdefi/evm/precompile/precompileconfig"
+	"github.com/luxfi/evm/precompile/modules"
+	"github.com/luxfi/evm/precompile/precompileconfig"
 )
 
 type Precompiles map[string]precompileconfig.Config
@@ -16,21 +16,28 @@ type Precompiles map[string]precompileconfig.Config
 // ChainConfigPrecompiles is a map of precompile module keys to their
 // configuration.
 func (ccp *Precompiles) UnmarshalJSON(data []byte) error {
+	*ccp = make(Precompiles)
+
 	raw := make(map[string]json.RawMessage)
 	if err := json.Unmarshal(data, &raw); err != nil {
 		return err
 	}
 
-	*ccp = make(Precompiles)
-	for _, module := range modules.RegisteredModules() {
-		key := module.ConfigKey
-		if value, ok := raw[key]; ok {
-			conf := module.MakeConfig()
-			if err := json.Unmarshal(value, conf); err != nil {
-				return err
+	for module, config := range raw {
+		m, ok := modules.GetPrecompileModuleByKey(module)
+		if !ok {
+			return modules.ErrUndefinedPrecompileKey{
+				Key: module,
 			}
-			(*ccp)[key] = conf
 		}
+
+		moduleCfg := m.MakeConfig()
+		if err := json.Unmarshal(config, moduleCfg); err != nil {
+			return err
+		}
+
+		(*ccp)[module] = moduleCfg
 	}
+
 	return nil
 }

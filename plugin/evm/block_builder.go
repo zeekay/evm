@@ -7,9 +7,9 @@ import (
 	"sync"
 	"time"
 	"github.com/luxfi/node/utils/timer"
-	"github.com/luxdefi/evm/core"
-	"github.com/luxdefi/evm/core/txpool"
-	"github.com/luxdefi/evm/params"
+	"github.com/luxfi/evm/core"
+	"github.com/luxfi/evm/core/txpool"
+	"github.com/luxfi/evm/params"
 	"github.com/luxfi/node/snow"
 	commonEng "github.com/luxfi/node/snow/engine/common"
 	"github.com/ethereum/go-ethereum/log"
@@ -46,6 +46,11 @@ type blockBuilder struct {
 	// If the mempool receives a new transaction, the block builder will send a new notification to
 	// the engine and cancel the timer.
 	buildBlockTimer *timer.Timer
+	
+	// autominingEnabled indicates if blocks should be built automatically even without transactions
+	autominingEnabled bool
+	// autominingInterval is the interval at which to build empty blocks in automining mode
+	autominingInterval time.Duration
 }
 
 func (vm *VM) NewBlockBuilder(notifyBuildBlockChan chan<- commonEng.Message) *blockBuilder {
@@ -56,6 +61,8 @@ func (vm *VM) NewBlockBuilder(notifyBuildBlockChan chan<- commonEng.Message) *bl
 		shutdownChan:         vm.shutdownChan,
 		shutdownWg:           &vm.shutdownWg,
 		notifyBuildBlockChan: notifyBuildBlockChan,
+		autominingEnabled:    vm.autominingEnabled,
+		autominingInterval:   1 * time.Second, // Default 1 second blocks for automining
 	}
 	b.handleBlockBuilding()
 	return b
@@ -96,6 +103,10 @@ func (b *blockBuilder) handleGenerateBlock() {
 // needToBuild returns true if there are outstanding transactions to be issued
 // into a block.
 func (b *blockBuilder) needToBuild() bool {
+	// In automining mode, always build blocks
+	if b.autominingEnabled {
+		return true
+	}
 	size := b.txPool.PendingSize(txpool.PendingFilter{
 		MinTip: uint256.MustFromBig(b.txPool.GasTip()),
 	})
@@ -144,6 +155,11 @@ func (b *blockBuilder) awaitSubmittedTxs() {
 	txSubmitChan := make(chan core.NewTxsEvent)
 	b.txPool.SubscribeTransactions(txSubmitChan, true)
 
+	// Start automining goroutine if enabled
+	if b.autominingEnabled {
+		b.startAutomining()
+	}
+
 	b.shutdownWg.Add(1)
 	go b.ctx.Log.RecoverAndPanic(func() {
 		defer b.shutdownWg.Done()
@@ -155,6 +171,31 @@ func (b *blockBuilder) awaitSubmittedTxs() {
 				b.signalTxsReady()
 			case <-b.shutdownChan:
 				b.buildBlockTimer.Stop()
+				return
+			}
+		}
+	})
+}
+
+// startAutomining starts a goroutine that periodically signals block building
+func (b *blockBuilder) startAutomining() {
+	b.shutdownWg.Add(1)
+	go b.ctx.Log.RecoverAndPanic(func() {
+		defer b.shutdownWg.Done()
+		
+		log.Info("Starting automining", "interval", b.autominingInterval)
+		ticker := time.NewTicker(b.autominingInterval)
+		defer ticker.Stop()
+		
+		// Immediately signal ready to build the first block
+		b.signalTxsReady()
+		
+		for {
+			select {
+			case <-ticker.C:
+				log.Debug("Automining timer fired, signaling block build")
+				b.signalTxsReady()
+			case <-b.shutdownChan:
 				return
 			}
 		}
