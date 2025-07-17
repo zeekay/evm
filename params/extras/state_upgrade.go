@@ -41,7 +41,7 @@ func (s *StateUpgrade) verifyStateUpgrades(config *ChainConfig) error {
 	}
 
 	for address := range s.StateUpgradeAccounts {
-		if err := utils.VerifyAddress(address); err != nil {
+		if err := utils.VerifyAddress(address.String()); err != nil {
 			return fmt.Errorf("invalid address: %s", address)
 		}
 	}

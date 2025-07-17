@@ -6,4 +6,5 @@ import "errors"
 var (
     ErrInvalidJump = errors.New("invalid jump")
     ErrOutOfGas = errors.New("out of gas")
+    ErrWriteProtection = errors.New("write protection")
 )

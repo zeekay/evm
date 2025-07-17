@@ -5,6 +5,7 @@ package extras
 
 import (
 	"encoding/json"
+	"fmt"
 
 	"github.com/luxfi/evm/precompile/modules"
 	"github.com/luxfi/evm/precompile/precompileconfig"
@@ -24,11 +25,9 @@ func (ccp *Precompiles) UnmarshalJSON(data []byte) error {
 	}
 
 	for module, config := range raw {
-		m, ok := modules.GetPrecompileModuleByKey(module)
+		m, ok := modules.GetPrecompileModule(module)
 		if !ok {
-			return modules.ErrUndefinedPrecompileKey{
-				Key: module,
-			}
+			return fmt.Errorf("unknown precompile module: %s", module)
 		}
 
 		moduleCfg := m.MakeConfig()
