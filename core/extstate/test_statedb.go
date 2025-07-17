@@ -1,17 +1,13 @@
-// (c) 2023, Ava Labs, Inc. All rights reserved.
+// (c) 2025, Lux Industries Inc. All rights reserved.
 // See the file LICENSE for licensing terms.
 package extstate
 
 import (
 	"testing"
-<<<<<<< HEAD:core/state/test_statedb.go
+	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/rawdb"
 	"github.com/luxfi/evm/precompile/contract"
-	"github.com/ethereum/go-ethereum/common"
-=======
-	"github.com/luxfi/evm/interfaces/core/rawdb"
 	"github.com/luxfi/evm/core/state"
->>>>>>> v0.7.5:core/extstate/test_statedb.go
 	"github.com/stretchr/testify/require"
 )
 

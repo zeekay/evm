@@ -1,6 +1,6 @@
 module github.com/luxfi/evm
 
-go 1.21
+go 1.22
 
 require (
 	github.com/VictoriaMetrics/fastcache v1.12.5
