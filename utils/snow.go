@@ -4,11 +4,26 @@
 package utils
 
 import (
+	"context"
+	"errors"
+	
 	"github.com/luxfi/node/api/metrics"
 	"github.com/luxfi/node/ids"
 	"github.com/luxfi/node/snow"
+	"github.com/luxfi/node/snow/validators"
+	"github.com/luxfi/node/snow/validators/validatorstest"
+	"github.com/luxfi/node/upgrade/upgradetest"
+	"github.com/luxfi/node/utils/constants"
 	"github.com/luxfi/node/utils/crypto/bls"
+	"github.com/luxfi/node/utils/crypto/bls/signer/localsigner"
 	"github.com/luxfi/node/utils/logging"
+	"github.com/luxfi/node/vms/platformvm/warp"
+)
+
+var (
+	testChainID = ids.GenerateTestID()
+	testXChainID = ids.GenerateTestID()
+	testCChainID = ids.GenerateTestID()
 )
 
 func TestSnowContext() *snow.Context {
@@ -27,7 +42,6 @@ func TestSnowContext() *snow.Context {
 		NodeID:          ids.GenerateTestNodeID(),
 		XChainID:        testXChainID,
 		CChainID:        testCChainID,
-		NetworkUpgrades: upgradetest.GetConfig(upgradetest.Latest),
 		PublicKey:       pk,
 		WarpSigner:      warp.NewSigner(sk, networkID, chainID),
 		Log:             logging.NoLog{},
